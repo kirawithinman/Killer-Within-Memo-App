@@ -1,6 +1,6 @@
 # DEATH NOTE Killer Within用Webメモアプリ（局長メモ）　readme
 # 作者  
-一応作者だけど実際はGPTに指示を出してるだけ…紅茶即乱（X:[@teasokuran](https://x.com/teasokuran)）  
+作者（コードの全てはGPTに指示を出してるだけだけどアイコン描くのとかreadme書くのはちゃんとやった）…紅茶即乱（X:[@teasokuran](https://x.com/teasokuran)）  
 神！…ChatGPT5
   
 ---
