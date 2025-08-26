@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>局長メモ V1.1（ブラウザ版）</title>
+<style>
+  :root{ --font: 12px; --gap: 4px; --pad: 4px; --name-w: 66px; --players-h: 380px; --controls-h: 96px; }
+  *{box-sizing:border-box}
+  body{ margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans JP",sans-serif; font-size:var(--font); height:100vh; display:flex; background:#f2f2f2; }
+  #app{ width:100%; display:flex; flex-direction:column; min-height:0; }
+
+  /* 上段：プレイヤー */
+  #players{ background:#ffe5e5; border-bottom:1px solid #ccc; padding:var(--pad); overflow:auto; flex:0 0 var(--players-h); height:var(--players-h); }
+  .players-grid{ display:grid; grid-template-columns:1fr 1fr; gap:var(--gap); }
+  .player-card,.add-card,.placeholder{ background:#fff; border:1px solid #bbb; border-radius:6px; padding:var(--pad); min-height:76px; }
+  .player-card{ transition:background-color .15s; }
+  .player-top{ display:flex; align-items:center; gap:6px; margin-bottom:2px; }
+  .player-header{ font-weight:700; min-width:1.2em; text-align:center; cursor:pointer; user-select:none; }
+  .player-header:hover{ text-decoration:underline; }
+  .name-input{ flex:0 0 var(--name-w); width:var(--name-w); min-width:0; padding:2px 4px; overflow:hidden; text-overflow:clip; white-space:nowrap; }
+  .roles{ display:flex; flex-wrap:wrap; gap:2px; }
+  .role-badge{ display:inline-block; white-space:nowrap; cursor:pointer; font-weight:700; padding:0 3px; user-select:none; border-radius:3px; }
+  .red{color:#d11818} .blue{color:#1060d1} .purple{color:#7a2dd1}
+  .player-card.red-bg{ background:#ffecec; } .player-card.blue-bg{ background:#edf4ff; } .player-card.purple-bg{ background:#f3eaff; }
+
+  /* 赤青カウンタ */
+  .count-wrap{ margin-left:auto; display:flex; gap:6px; align-items:center; }
+  .count-red{ color:#d11818; font-weight:700; min-width:1.2em; text-align:right; }
+  .count-blue{ color:#1060d1; font-weight:700; min-width:1.2em; text-align:right; }
+
+  /* NONE枠 */
+  .placeholder{ display:flex; flex-direction:column; align-items:center; justify-content:center; color:#777; }
+  .placeholder .slot-head{ font-weight:700; margin-bottom:4px; }
+  .placeholder .none-label{ font-weight:700; letter-spacing:0.08em; }
+
+  /* 追加カード */
+  .add-card .add-row{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:4px; }
+  .add-card input[type="text"], .add-card select{ font-size:var(--font); padding:2px 4px; }
+  .add-card .same-line{ display:flex; gap:6px; align-items:center; }
+  .compact{ width:auto; }
+
+  /* 中段：ボタン群 */
+  #controls{ background:#e5f0ff; border-top:1px solid #cfdaf0; border-bottom:1px solid #cfdaf0; padding:var(--pad); overflow:auto; flex:0 0 var(--controls-h); height:var(--controls-h); }
+  .line{ margin-bottom:var(--gap); display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
+  .line button,.line input[type="text"], .line select{ font-size:var(--font); margin:2px; padding:2px 6px; }
+
+  /* 下段：出来事 */
+  #events{ background:#e5f0ff; padding:var(--pad); display:flex; flex-direction:column; gap:var(--gap); flex:1 1 auto; min-height:0; }
+  #eventList{ flex:1; overflow:auto; padding-top:var(--gap); }
+  .day-header{font-weight:700;margin:6px 0 2px}
+  .event-card{ background:#fff; border:1px solid #777; border-radius:6px; padding:var(--pad); margin-bottom:var(--gap); }
+  .event-header{ display:flex; align-items:center; justify-content:space-between; gap:6px; }
+  .event-title{ font-weight:700 }
+  .delete-btn{ padding:0 6px; line-height:1.6; }
+  .field-row{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:2px; }
+  .field-row input[type="text"], .field-row select{ padding:2px 4px; }
+  .participants{ margin-top:2px; display:flex; align-items:center; flex-wrap:wrap; gap:2px }
+  .participants .p-badge{ display:inline-block; white-space:nowrap; cursor:pointer; user-select:none; border-radius:3px; padding:0 3px; font-size: 15.5px;}
+  .participants.suspects .p-badge{ outline:0 }
+  .loc-input,.note-area{width:100%; margin-top:2px}
+  .note-area{resize:vertical; height:1.8em}
+
+  /* フッター・モーダル */
+  #footer{ position:sticky; bottom:0; background:#e5f0ff; padding:var(--pad); border-top:1px solid #cfdaf0; display:flex; align-items:center; gap:8px; justify-content:space-between; }
+  #footer button{font-size:var(--font); padding:3px 8px}
+  .mode-switch{display:flex; align-items:center; gap:8px}
+  .mode-switch label{ display:inline-flex; align-items:center; gap:3px }
+  .modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index:9999; }
+  .modal{ background:#fff; border:1px solid #666; border-radius:8px; padding:12px; min-width:220px; text-align:center; }
+  .modal h4{margin:0 0 8px 0; font-size:var(--font)}
+  .modal .actions{display:flex; gap:8px; justify-content:center; margin-top:8px}
+  .modal button{padding:4px 10px; font-size:var(--font)}
+
+  /* 仕切り */
+  .splitter{ height:6px; cursor:row-resize; background:linear-gradient(#ddd,#ccc); border-top:1px solid #c5c5c5; border-bottom:1px solid #c5c5c5; user-select:none; }
+
+  /* 身分証アイコン */
+  .idcard{ cursor:pointer; user-select:none; font-size:14px; line-height:1; padding:0 4px; border-radius:4px; }
+  .idcard.off{ text-decoration: line-through; opacity:.55; }
+
+  /* メモ帳 */
+  #notepadWrap{ margin:0 0 6px 0; }
+  #notepadArea{ width:100%; min-height:54px; resize:vertical; }
+</style>
+</head>
+<body>
+<div id="app">
+  <section id="players">
+    <!-- メモ帳（トグル表示） -->
+    <div id="notepadWrap" style="display:none;">
+      <textarea id="notepadArea" placeholder="メモ（このアプリを開いている間は保持されます）"></textarea>
+    </div>
+    <div class="players-grid" id="playersGrid"></div>
+  </section>
+
+  <div id="splitter1" class="splitter" role="separator" aria-label="Resize players and controls"></div>
+
+  <section id="controls">
+    <div class="line">
+      <button id="addDayBtn" type="button">＋日付追加</button>
+      <input type="text" id="customEvent" placeholder="自由イベントを入力" />
+      <button type="button" id="customAddBtn">追加</button>
+    </div>
+    <div class="line">
+      <button type="button" onclick="addEvent('捜査員の証明')">捜査員証明</button>
+      <button type="button" onclick="addEvent('監視カメラ設置')">監視カメラ</button>
+      <button type="button" onclick="addEvent('Lを騙るもの')">L騙る者</button>
+      <button type="button" onclick="addEvent('デスノートのテスト')">ノートテスト</button>
+      <button type="button" onclick="addEvent('キラのビデオ')">キラビデオ</button>
+      <button type="button" onclick="addEvent('プレイヤー死亡')">PC死亡</button>
+      <button type="button" onclick="addEvent('NPC死亡')">NPC死亡</button>
+      <button type="button" onclick="addMeetingEvent('id_theft')">身分証盗難</button>
+      <button type="button" onclick="addMeetingEvent('accuse')">告発/白出し</button>
+    </div>
+  </section>
+
+  <div id="splitter2" class="splitter" role="separator" aria-label="Resize controls and events"></div>
+
+  <section id="events">
+    <div id="eventList"></div>
+    <div id="footer">
+      <div class="mode-switch">
+        <span>表示方法:</span>
+        <label><input type="radio" name="mode" value="a" checked> a</label>
+        <label><input type="radio" name="mode" value="b"> b</label>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <button id="memoBtn" type="button">メモ</button>
+        <button id="clearBtn" type="button">全削除ォ！</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div id="confirmModal" class="modal-backdrop" role="dialog" aria-modal="true">
+  <div class="modal">
+    <h4 id="confirmTitle">よろしいですか？</h4>
+    <div class="actions">
+      <button id="confirmYes" type="button">削除ォ！</button>
+      <button id="confirmNo"  type="button">NO</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const playersGrid = document.getElementById('playersGrid');
+  const eventList   = document.getElementById('eventList');
+  const clearBtn    = document.getElementById('clearBtn');
+  const modal       = document.getElementById('confirmModal');
+  const confirmTitle= document.getElementById('confirmTitle');
+  const btnYes = document.getElementById('confirmYes');
+  const btnNo  = document.getElementById('confirmNo');
+  const customEventInput = document.getElementById('customEvent');
+  const customAddBtn = document.getElementById('customAddBtn');
+
+  const memoBtn = document.getElementById('memoBtn');
+  const notepadWrap = document.getElementById('notepadWrap');
+  const notepadArea = document.getElementById('notepadArea');
+
+  let eventCounter = 1, dayCounter = 0;
+  const MAX_PLAYERS = 10;
+
+  // 共通記憶領域
+  const names = Array(10).fill("");
+  const redCounts  = Array(10).fill(0);
+  const blueCounts = Array(10).fill(0);
+  const idCards    = Array(10).fill(1); // 1=所持, 0=なし（盗難）
+  const ROLE_LABELS = ["月","信","L","ワ","局","捜","メ"];
+  let roleStates = Array.from({length:10},()=>{ const o={}; ROLE_LABELS.forEach(l=>o[l] = "empty"); return o; });
+
+  // メモ（セッション内保持）
+  let memoVisible = false;
+  let memoText = "";
+  notepadArea.addEventListener('input', ()=>{ memoText = notepadArea.value; });
+
+  // 描画順＆モード
+  let order = Array.from({length: MAX_PLAYERS}, (_,i)=>i);
+  let viewMode = 'a';
+
+  const letterOf = i => String.fromCharCode(65 + i);
+  const shortName = i => { const t=(names[i]||"").trim(); return t?Array.from(t).slice(0,3).join(''):letterOf(i); };
+
+  const roles = [
+    { label:"月", color:"red" },{ label:"信", color:"red" },
+    { label:"L", color:"blue"},{ label:"ワ", color:"blue"},
+    { label:"局", color:"blue"},{ label:"捜", color:"blue"},
+    { label:"メ", color:"purple"}
+  ];
+  const nextState = s => s==="empty" ? "check" : s==="check" ? "x" : "empty";
+  const icon      = s => s==="empty" ? "□"     : s==="check" ? "☑"  : "×";
+
+  /*================ スプリット背景：右2/3 & 左1/3 ================*/
+  function updatePlayerCardColor(card){
+    const idx = Number(card.dataset.index ?? -1);
+    if(idx < 0) return;
+    const COLORS = { red:'#ffecec', blue:'#edf4ff', purple:'#f3eaff', gray:'#e0e0e0', none:'#ffffff' };
+
+    // 右側（b優先）
+    let right='none';
+    const p = roleStates[idx]||{};
+    const hasPurple = p["メ"]==='check';
+    const hasRed    = p["月"]==='check' || p["信"]==='check';
+    const hasBlue   = p["L"]==='check' || p["ワ"]==='check' || p["局"]==='check' || p["捜"]==='check';
+    if(hasPurple) right='purple';
+    else if(hasRed) right='red';
+    else if(hasBlue) right='blue';
+    else{
+      const r = redCounts[idx]||0, b = blueCounts[idx]||0;
+      if(r===0 && b===0){ right = (idCards[idx]===0) ? 'gray' : 'none'; }
+      else{ right = (r>=b)? 'red' : 'blue'; }
+    }
+
+    // 左側（a優先）
+    let left='none';
+    const stolen = (idCards[idx]===0);
+    if(stolen) left='gray';
+    else if(['purple','red','blue'].includes(right)) left=right; else left='none';
+
+    const lc = COLORS[left]  || COLORS.none;
+    const rc = COLORS[right] || COLORS.none;
+    card.classList.remove('purple-bg','red-bg','blue-bg');
+    card.style.background = `linear-gradient(to right, ${lc} 0%, ${lc} 33.333%, ${rc} 33.333%, ${rc} 100%)`;
+  }
+
+  function applyDelta(index, type, delta){
+    if(type==='red'){ redCounts[index]+=delta; }
+    else if(type==='blue'){ blueCounts[index]+=delta; }
+    renderCount(index);
+    const card = document.querySelector(`.player-card[data-index="${index}"]`);
+    if(card) updatePlayerCardColor(card);
+  }
+  function renderCount(index){
+    document.querySelectorAll(`.count-red[data-index="${index}"]`).forEach(e=>e.textContent=redCounts[index]);
+    document.querySelectorAll(`.count-blue[data-index="${index}"]`).forEach(e=>e.textContent=blueCounts[index]);
+  }
+  function renderAllCounts(){ for(let i=0;i<10;i++) renderCount(i); }
+
+  function isEmptyPlayer(i){
+    if((names[i]||'').trim()!=='') return false;
+    if(redCounts[i]!==0 || blueCounts[i]!==0) return false;
+    const st = roleStates[i];
+    return ROLE_LABELS.every(k=>st[k]==='empty');
+  }
+  function pushBlanksToEnd(){
+    const nonEmpty = order.filter(i=> !isEmptyPlayer(i));
+    const empty = order.filter(i=>  isEmptyPlayer(i));
+    order = nonEmpty.concat(empty);
+  }
+  function setMode(m){
+    if(viewMode!==m){
+      viewMode=m;
+      pushBlanksToEnd();
+      renderPlayers();
+      function wireExistingTheftSpeakers(){
+        document.querySelectorAll('select.name-select[data-kind="speaker-theft"]').forEach(sel=>{
+          if(sel.dataset.wired==='1') return;
+          sel.addEventListener('change',()=>{ const v=sel.value; if(v==='') return; const idx=Number(v); if(!Number.isNaN(idx)){ idCards[idx]=0; paintIdIcon(idx); } });
+          sel.dataset.wired='1';
+        });
+      }
+      wireExistingTheftSpeakers();
+      refreshAllNameSelects();
+    }
+  }
+
+  function renderPlayers(){
+    // メモの可視状態・内容を保持
+    notepadWrap.style.display = memoVisible ? '' : 'none';
+    if(memoVisible) notepadArea.value = memoText;
+
+    playersGrid.innerHTML='';
+    const indices = order.slice();
+    if(viewMode==='a'){
+      const nonEmpty = indices.filter(i=>!isEmptyPlayer(i));
+      nonEmpty.forEach(i=> playersGrid.appendChild(buildPlayerCard(i)) );
+      for(let k=nonEmpty.length; k<MAX_PLAYERS-1; k++) playersGrid.appendChild(buildNoneCard(indices[k]??k));
+      if(nonEmpty.length < MAX_PLAYERS){ playersGrid.appendChild(buildAddCard()); }
+    }else{
+      indices.forEach(i=> playersGrid.appendChild(buildPlayerCard(i)) );
+    }
+    renderAllCounts();
+  }
+
+  function buildNoneCard(index){
+    const ph=document.createElement('div'); ph.className='placeholder';
+    const h=document.createElement('div'); h.className='slot-head'; h.textContent=letterOf(index);
+    const n=document.createElement('div'); n.className='none-label'; n.textContent='NONE';
+    ph.append(h,n); return ph;
+  }
+
+  function buildPlayerCard(index){
+    const card=document.createElement('div'); card.className='player-card'; card.dataset.index=index;
+
+    const top=document.createElement('div'); top.className='player-top';
+    const head=document.createElement('div'); head.className='player-header'; head.title='最新イベントに紐づけ'; head.textContent=letterOf(index);
+    head.addEventListener('click', ()=> linkPlayerToLatestEvent(index));
+
+    const name=document.createElement('input'); name.className='name-input'; name.type='text'; name.placeholder='名前'; name.value=names[index]||'';
+    name.addEventListener('input',()=>{ names[index]=name.value; updateAllParticipantLabels(index); refreshAllNameSelects(); });
+
+    // 身分証アイコン
+    const idIcon=document.createElement('span');
+    idIcon.className='idcard';
+    idIcon.title='身分証';
+    function paintId(){ idIcon.textContent='📒'; idIcon.classList.toggle('off', idCards[index]===0); }
+    paintId();
+    idIcon.onclick=()=>{ const prev=idCards[index]; idCards[index] = prev ? 0 : 1; paintId(); updatePlayerCardColor(card);
+      if(prev===1 && idCards[index]===0){
+        const created = addMeetingEvent('id_theft');
+        setTimeout(()=>{
+          const targetCard = created || [...eventList.querySelectorAll('.event-card')].pop();
+          if(!targetCard) return;
+          const sp = targetCard.querySelector('select.name-select[data-kind="speaker-theft"]');
+          if(sp){ sp.value = String(index); sp.dispatchEvent(new Event('change')); }
+        },0);
+      }
+    };
+
+    const cntWrap=document.createElement('div'); cntWrap.className='count-wrap';
+    const r=document.createElement('span'); r.className='count-red'; r.dataset.index=index; r.textContent=redCounts[index];
+    const b=document.createElement('span'); b.className='count-blue'; b.dataset.index=index; b.textContent=blueCounts[index];
+    cntWrap.append(r,b);
+
+    top.append(head,name,idIcon,cntWrap);
+    card.appendChild(top);
+
+    const rolesDiv=document.createElement('div'); rolesDiv.className='roles';
+    roles.forEach(ro=>{
+      const sp=document.createElement('span');
+      sp.className=`role-badge ${ro.color}`;
+      const label=ro.label; const st=roleStates[index][label]||'empty';
+      sp.dataset.state=st; sp.textContent=label+icon(st);
+      sp.onclick=()=>{ const ns = nextState(sp.dataset.state); sp.dataset.state=ns; sp.textContent=label+icon(ns); roleStates[index][label]=ns; updatePlayerCardColor(card); };
+      rolesDiv.appendChild(sp);
+    });
+    card.appendChild(rolesDiv);
+
+    updatePlayerCardColor(card);
+    return card;
+  }
+
+  function buildAddCard(){
+    const add=document.createElement('div'); add.className='add-card';
+    const row1=document.createElement('div'); row1.className='add-row same-line';
+    const nameInput=document.createElement('input'); nameInput.type='text'; nameInput.placeholder='名前'; nameInput.id='addName'; nameInput.className='name-input';
+    const presetSel=document.createElement('select'); presetSel.id='addPreset'; presetSel.className='compact';
+    [['','なし'],['suspect','容疑者'],['investigator','捜査員']].forEach(([v,t])=>presetSel.appendChild(new Option(t,v)));
+    row1.append(nameInput,presetSel); add.appendChild(row1);
+
+    const row2=document.createElement('div'); row2.className='add-row same-line';
+    const linkWrap=document.createElement('label'); const linkChk=document.createElement('input'); linkChk.type='checkbox'; linkChk.id='addLink'; linkChk.checked=true; linkWrap.append(linkChk,' 紐づけ');
+    const addBtn=document.createElement('button'); addBtn.type='button'; addBtn.textContent='追加';
+    const doAdd=()=>{ const name=nameInput.value.trim(); const preset=presetSel.value; const linkOn=linkChk.checked; if(!name){ nameInput.focus(); return; } addPlayer(name,preset,linkOn); nameInput.value=''; };
+    addBtn.onclick=doAdd; nameInput.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); doAdd(); } });
+    row2.append(linkWrap,addBtn); add.appendChild(row2);
+    return add;
+  }
+
+  function firstEmptyIndex(){ for(const i of order){ if(isEmptyPlayer(i)) return i; } return -1; }
+
+  function addPlayer(name,preset,linkOn){
+    const idx=firstEmptyIndex(); if(idx<0) return;
+    names[idx]=name;
+    const presetMap={ suspect:["月","信"], investigator:["L","ワ","局","捜"] };
+    if(preset && presetMap[preset]) presetMap[preset].forEach(L=> roleStates[idx][L]='check');
+    renderPlayers(); updateAllParticipantLabels(idx); refreshAllNameSelects(); if(linkOn) linkPlayerToLatestEvent(idx); renderCount(idx);
+  }
+
+  function linkPlayerToLatestEvent(playerIndex){
+    const last=[...eventList.querySelectorAll('.event-card')].pop(); if(!last) return;
+    let group=last.querySelector('.participants.suspects'); if(!group) group=last.querySelector('.participants');
+    if(!group) return;
+    const badge=group.querySelector(`.p-badge[data-index="${playerIndex}"]`);
+    if(badge){ const prev = badge.dataset.state || 'empty'; if(prev!=='check'){ badge.dataset.state='check'; badge.textContent=shortName(playerIndex)+icon('check'); const t=group.dataset.countType||'none'; if(t!=='none') applyDelta(playerIndex,t,1); } }
+  }
+
+  // 身分証アイコンの再描画（外部から同期用）
+  function paintIdIcon(index){
+    const el = document.querySelector(`.player-card[data-index="${index}"] .idcard`);
+    if(el){ el.textContent='📒'; el.classList.toggle('off', idCards[index]===0); }
+    const card = document.querySelector(`.player-card[data-index="${index}"]`);
+    if(card) updatePlayerCardColor(card);
+  }
+
+  function addDay(){ dayCounter++; const dh=document.createElement('div'); dh.className='day-header'; dh.textContent=`${dayCounter}日目`; eventList.appendChild(dh); }
+
+  function buildParticipants(countType,labelText='関与:'){
+    const wrap=document.createElement('div'); wrap.className='participants'; wrap.dataset.countType=countType;
+    const lbl=document.createElement('span'); lbl.textContent=labelText; wrap.appendChild(lbl);
+    for(let i=0;i<10;i++){
+      const p=document.createElement('span'); p.className='p-badge'; p.dataset.state='empty'; p.dataset.index=i; p.textContent=shortName(i)+icon('empty');
+      p.onclick=()=>{ const prev=p.dataset.state; const next=nextState(prev); p.dataset.state=next; p.textContent=shortName(i)+icon(next); const type=wrap.dataset.countType||'none'; if(type!=='none'){ const prevC=(prev==='check')?1:0, nextC=(next==='check')?1:0; const delta=nextC-prevC; if(delta) applyDelta(i,type,delta); } };
+      wrap.appendChild(p);
+    }
+    return wrap;
+  }
+  function buildSuspects(countType){ const wrap=buildParticipants(countType,'容疑者:'); wrap.classList.add('suspects'); return wrap; }
+
+  function nonEmptyPlayerIndices(){ return order.filter(i=> (names[i]||"").trim()); }
+  function populateNameSelect(sel, keepValue){
+    const current = (keepValue!==undefined? keepValue: sel.value);
+    sel.innerHTML=''; sel.append(new Option('（選択）',''));
+    nonEmptyPlayerIndices().forEach(i=> sel.append(new Option(names[i].trim(), String(i))) );
+    if(current && sel.querySelector(`option[value="${current}"]`)) sel.value=current; else sel.value='';
+  }
+  function buildNameSelect(initialValue){ const sel=document.createElement('select'); sel.className='name-select'; populateNameSelect(sel, initialValue!==undefined? String(initialValue): undefined); return sel; }
+  function refreshAllNameSelects(){ document.querySelectorAll('select.name-select').forEach(sel=> populateNameSelect(sel)); }
+
+  const BLUE_EVENT_SET = new Set(['捜査員の証明','Lを騙るもの','プレイヤー死亡','NPC死亡']);
+
+  function addEvent(name){
+    if(dayCounter===0) addDay();
+    const card=document.createElement('div'); card.className='event-card';
+    const header=document.createElement('div'); header.className='event-header';
+    const title=document.createElement('div'); title.className='event-title'; title.textContent=`${eventCounter}. ${name}`;
+    const del=document.createElement('button'); del.type='button'; del.className='delete-btn'; del.textContent='削除ォ！'; del.onclick=()=>confirmDeleteEvent(card);
+    header.append(title,del); card.appendChild(header);
+
+    const loc=document.createElement('input'); loc.className='loc-input'; loc.placeholder='場所（自由記述）'; card.appendChild(loc);
+
+    if(name==='プレイヤー死亡'){
+      const row=document.createElement('div'); row.className='field-row';
+      const label=document.createElement('span'); label.textContent='死亡者:';
+      const victimSel = buildNameSelect();
+      row.append(label,victimSel); card.appendChild(row);
+    }
+
+    const countType = BLUE_EVENT_SET.has(name) ? 'blue' : 'none';
+    card.appendChild(buildParticipants(countType,'関与:'));
+
+    const note=document.createElement('textarea'); note.className='note-area'; note.placeholder='備考'; card.appendChild(note);
+
+    eventList.appendChild(card); eventCounter++; return card;
+  }
+
+  function addCustomEvent(){ const v=customEventInput.value.trim(); if(v){ addEvent(v); customEventInput.value=''; } }
+
+  function addMeetingEvent(type){
+    if(dayCounter===0) addDay();
+    const card=document.createElement('div'); card.className='event-card';
+    const header=document.createElement('div'); header.className='event-header';
+    const title=document.createElement('div'); title.className='event-title';
+    const del=document.createElement('button'); del.type='button'; del.className='delete-btn'; del.textContent='削除'; del.onclick=()=>confirmDeleteEvent(card);
+    header.append(title,del); card.appendChild(header);
+
+    if(type==='id_theft'){
+      title.textContent=`${eventCounter}. 身分証を盗られた`;
+      const row1=document.createElement('div'); row1.className='field-row';
+      const spLabel=document.createElement('span'); spLabel.textContent='発言者:';
+      const speakerSel=buildNameSelect(); speakerSel.dataset.kind='speaker-theft';
+      const place=document.createElement('input'); place.type='text'; place.placeholder='場所（自由記述）';
+      row1.append(spLabel,speakerSel,place); card.appendChild(row1);
+      speakerSel.addEventListener('change',()=>{ const v=speakerSel.value; if(v==='') return; const idx=Number(v); if(!Number.isNaN(idx)){ idCards[idx]=0; paintIdIcon(idx); } });
+      speakerSel.dataset.wired='1';
+      card.appendChild(buildSuspects('red'));
+    }else if(type==='accuse'){
+      title.textContent=`${eventCounter}. 告発・白出し`;
+      const row1=document.createElement('div'); row1.className='field-row';
+      const spLabel=document.createElement('span'); spLabel.textContent='発言者:';
+      const speakerSel=buildNameSelect();
+      const contentSel=document.createElement('select');
+      contentSel.append(new Option('内容を選択',''), new Option('キラ','キラ'), new Option('捜査員','捜査員'), new Option('メロ','メロ'));
+      row1.append(spLabel,speakerSel,contentSel); card.appendChild(row1);
+
+      const suspects = buildSuspects('none'); card.appendChild(suspects);
+      contentSel.addEventListener('change',()=>{ const from=suspects.dataset.countType||'none'; const to = contentSel.value==='キラ' ? 'red' : contentSel.value==='捜査員' ? 'blue' : 'none'; if(from===to) return; updateCountsForGroup(suspects, from, to); suspects.dataset.countType=to; });
+    }
+
+    eventList.appendChild(card); eventCounter++; return card;
+  }
+
+  function updateCountsForGroup(group, fromType, toType){ group.querySelectorAll('.p-badge').forEach(b=>{ if(b.dataset.state==='check'){ if(fromType!=='none') applyDelta(Number(b.dataset.index), fromType, -1); if(toType!=='none') applyDelta(Number(b.dataset.index), toType, +1); } }); }
+
+  function openModal(){ modal.style.display='flex'; }
+  function closeModal(){ modal.style.display='none'; }
+  function confirmWithModal(onYes, message){ confirmTitle.textContent = message || 'よろしいですか？'; btnYes.onclick = null; btnNo.onclick  = null; btnYes.onclick = ()=>{ closeModal(); try{ onYes && onYes(); }catch(e){} }; btnNo.onclick  = closeModal; openModal(); }
+  function confirmDeleteEvent(card){ confirmWithModal(()=>{ card.querySelectorAll('.participants').forEach(group=>{ const type=group.dataset.countType||'none'; if(type==='none') return; group.querySelectorAll('.p-badge').forEach(b=>{ if(b.dataset.state==='check') applyDelta(Number(b.dataset.index), type, -1); }); }); card.remove(); }, 'このイベントを削除してよろしいですか？'); }
+
+  function updateAllParticipantLabels(changedIndex){ document.querySelectorAll(`.p-badge[data-index="${changedIndex}"]`).forEach(b=>{ const st=b.dataset.state||'empty'; b.textContent=shortName(Number(changedIndex))+icon(st); }); }
+
+  function clearAll(){
+    names.fill(''); redCounts.fill(0); blueCounts.fill(0);
+    roleStates = Array.from({length:10},()=>{ const o={}; ROLE_LABELS.forEach(l=>o[l] = 'empty'); return o; });
+    idCards.fill(1);
+    eventList.innerHTML=''; dayCounter=0; eventCounter=1; order = Array.from({length: MAX_PLAYERS}, (_,i)=>i);
+    memoVisible = false; memoText = ""; notepadWrap.style.display='none'; notepadArea.value='';
+    renderPlayers(); refreshAllNameSelects();
+  }
+
+  // メモボタン：表示/非表示トグル
+  memoBtn.onclick = ()=>{
+    memoVisible = !memoVisible;
+    notepadWrap.style.display = memoVisible ? '' : 'none';
+    if(memoVisible){ notepadArea.value = memoText; notepadArea.focus(); }
+  };
+
+  document.getElementById('addDayBtn').onclick=addDay;
+  clearBtn.onclick = ()=>confirmWithModal(clearAll, 'All Data Deletionしてよろしいですか？');
+  customAddBtn.onclick = addCustomEvent;
+  customEventInput.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); addCustomEvent(); } });
+  document.querySelectorAll('input[name="mode"]').forEach(r=> r.addEventListener('change', (e)=> setMode(e.target.value)) );
+  renderPlayers();
+
+  (function setupSplitters(){ const docStyle=document.documentElement.style; function bindSplitter(id, cssVar, minPx, maxPx){ const sp=document.getElementById(id); let dragging=false,startY=0,startH=0; const move=(e)=>{ if(!dragging) return; const dy=e.clientY-startY; let nh=Math.min(maxPx, Math.max(minPx, startH+dy)); docStyle.setProperty(cssVar, nh+'px'); }; const up=()=>{ dragging=false; window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); }; sp.addEventListener('mousedown',(e)=>{ dragging=true; startY=e.clientY; const cur=parseInt(getComputedStyle(document.documentElement).getPropertyValue(cssVar)||'0',10); startH=isNaN(cur)?0:cur; window.addEventListener('mousemove', move); window.addEventListener('mouseup', up); }); } bindSplitter('splitter1','--players-h',140,700); bindSplitter('splitter2','--controls-h',56,240); })();
+</script>
+</body>
+</html>
