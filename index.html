@@ -2,9 +2,9 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
-<title>局長メモ V1.2（ブラウザ版）</title>
+<title>局長メモ V1.3（ブラウザ版）</title>
 <style>
-  :root{ --font: 12px; --gap: 4px; --pad: 4px; --name-w: 66px; --players-h: 380px; --controls-h: 96px; }
+  :root{ --font: 12px; --gap: 4px; --pad: 4px; --name-w: 66px; --players-h: 380px; --controls-h: 110px; }
   *{box-sizing:border-box}
   body{ margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans JP",sans-serif; font-size:var(--font); height:100vh; display:flex; background:#f2f2f2; }
   #app{ width:100%; display:flex; flex-direction:column; min-height:0; }
@@ -49,7 +49,7 @@
   .line{ margin-bottom:var(--gap); display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
   .line button,.line input[type="text"], .line select{ font-size:var(--font); margin:2px; padding:2px 6px; }
 
-  /* 下段：出来事 */
+  /* 下段：出来事 / Tips */
   #events{ background:#e5f0ff; padding:var(--pad); display:flex; flex-direction:column; gap:var(--gap); flex:1 1 auto; min-height:0; }
   #eventList{ flex:1; overflow:auto; padding-top:var(--gap); }
   .day-header{font-weight:700;margin:6px 0 2px}
@@ -61,6 +61,11 @@
   .field-row input[type="text"], .field-row select{ padding:2px 4px; }
   .participants{ margin-top:2px; display:flex; align-items:center; flex-wrap:wrap; gap:2px }
   .participants .p-badge{ display:inline-block; white-space:nowrap; cursor:pointer; user-select:none; border-radius:3px; padding:0 3px; font-size: 15.5px;}
+
+  /* Tips */
+  #tipsPane{ display:none; flex:1; overflow:auto; }
+  .tip-card{ background:#fff; border:1px solid #aaa; border-radius:6px; padding:8px; margin-bottom:6px; }
+  .tip-title{ font-weight:700; margin-bottom:4px; }
 
   /* フッター・モーダル */
   #footer{ position:sticky; bottom:0; background:#e5f0ff; padding:var(--pad); border-top:1px solid #cfdaf0; display:flex; align-items:center; gap:8px; justify-content:space-between; flex-wrap:wrap; }
@@ -97,14 +102,21 @@
         <div class="set-title">表示モード</div>
         <label><input type="radio" name="mode" value="a"> a（NONE×＋追加カード）</label>
         <label style="margin-left:8px;"><input type="radio" name="mode" value="b"> b（10枠表示）</label>
+        <label style="margin-left:8px;"><input type="radio" name="mode" value="bPrime"> b´（プルダウン10枠）</label>
+
       </div>
       <div class="set-card">
         <div class="set-title">イベント欄リセット</div>
-        <button id="eventsResetBtn" type="button">イベント欄削除（プレイヤー欄はそのまま）</button>
+        <button id="eventsResetBtn" type="button">名前欄以外全削除</button>
       </div>
       <div class="set-card">
         <div class="set-title">全消去</div>
         <button id="clearAllBtn" type="button">全削除ォ！</button>
+      </div>
+      <!-- b´プリセット編集（b´時のみ表示） -->
+      <div class="set-card" id="bprimePoolCard" style="display:none">
+        <div class="set-title">b´の名前プリセット（最大16）</div>
+        <div id="bprimePoolWrap"></div>
       </div>
     </div>
   </section>
@@ -128,13 +140,15 @@
     <div class="line">
       <button type="button" id="btnProof">捜査員証明</button>
       <button type="button" id="btnCamera">監視カメラ</button>
-      <button type="button" id="btnLDress">Lを騙るもの</button>
+      <button type="button" id="btnLDress">L騙る者</button>
       <button type="button" id="btnNote">ノートテスト</button>
       <button type="button" id="btnKiraVideo">キラビデオ</button>
       <button type="button" id="btnPcDie">PC死亡</button>
       <button type="button" id="btnNpcDie">NPC死亡</button>
+      <button type="button" id="btnJoint">合同捜査</button>
       <button type="button" id="btnIdTheft">身分証盗難</button>
       <button type="button" id="btnAccuse">告発/白出し</button>
+      <button type="button" id="btnArrest">逮捕</button>
     </div>
   </section>
 
@@ -142,20 +156,24 @@
 
   <section id="events">
     <div id="eventList"></div>
+    <div id="tipsPane"></div>
     <div id="footer">
       <div style="display:flex; gap:8px; align-items:center;">
         <button id="settingsBtn" type="button">設定</button>
         <button id="memoBtn" type="button">メモ</button>
+        <button id="tipsBtn" type="button" title="イベント欄とTips欄を切替">Tips</button>
       </div>
       <div class="mode-mini">
         <div class="kora" id="kiraGroup">
-          <label><input type="radio" name="kiraType" value="K" checked><span id="lblKira">キラ</span></label>
-          <label><input type="radio" name="kiraType" value="X"><span id="lblXKira">Xキラ</span></label>
+          <label><input type="radio" name="kiraType" value="unknown" checked>不明</label>
+          <label><input type="radio" name="kiraType" value="K">キラ</label>
+          <label><input type="radio" name="kiraType" value="X">Xキラ</label>
         </div>
         <span>|</span>
         <div class="kora" id="lGroup">
-          <label><input type="radio" name="lType" value="L" checked><span id="lblL">L</span></label>
-          <label><input type="radio" name="lType" value="N"><span id="lblN">N</span></label>
+          <label><input type="radio" name="lType" value="unknown" checked>不明</label>
+          <label><input type="radio" name="lType" value="L">L</label>
+          <label><input type="radio" name="lType" value="N">N</label>
         </div>
       </div>
     </div>
@@ -175,6 +193,8 @@
 <script>
   const playersGrid = document.getElementById('playersGrid');
   const eventList   = document.getElementById('eventList');
+  const tipsPane    = document.getElementById('tipsPane');
+  const tipsBtn     = document.getElementById('tipsBtn');
   const modal       = document.getElementById('confirmModal');
   const confirmTitle= document.getElementById('confirmTitle');
   const btnYes = document.getElementById('confirmYes');
@@ -189,16 +209,14 @@
   const settingsSec = document.getElementById('settings');
   const playersSec  = document.getElementById('players');
   const settingsBtn = document.getElementById('settingsBtn');
+  const bprimePoolCard = document.getElementById('bprimePoolCard');
+  const bprimePoolWrap = document.getElementById('bprimePoolWrap');
   const eventsResetBtn = document.getElementById('eventsResetBtn');
   const clearAllBtn    = document.getElementById('clearAllBtn');
 
   // 切り替えUI
   const kiraRadios = document.querySelectorAll('input[name="kiraType"]');
   const lRadios    = document.querySelectorAll('input[name="lType"]');
-  const lblKira= document.getElementById('lblKira');
-  const lblXKira=document.getElementById('lblXKira');
-  const lblL   = document.getElementById('lblL');
-  const lblN   = document.getElementById('lblN');
 
   // イベントボタン参照
   const btnProof = document.getElementById('btnProof');
@@ -210,6 +228,8 @@
   const btnNpcDie= document.getElementById('btnNpcDie');
   const btnIdTheft=document.getElementById('btnIdTheft');
   const btnAccuse= document.getElementById('btnAccuse');
+  const btnJoint = document.getElementById('btnJoint');
+  const btnArrest= document.getElementById('btnArrest');
 
   let eventCounter = 1, dayCounter = 0;
   const MAX_PLAYERS = 10;
@@ -219,51 +239,98 @@
   const redCounts  = Array(10).fill(0);
   const blueCounts = Array(10).fill(0);
   const idCards    = Array(10).fill(1); // 1=所持, 0=なし（盗難）
-  // 役職キーは固定で保持（表示ラベルは後からマップ）
-  const ROLE_KEYS = ["K","SHIN","L","WA","KYOKU","SOU","M","X","N"]; // K=月, X=Xキラ, L, N
+
+  // 役職キーを共通化（K/X → K_MAIN, L/N → L_MAIN）
+  const ROLE_KEYS = ["K_MAIN","SHIN","L_MAIN","WA","KYOKU","SOU","M"];
   let roleStates = Array.from({length:10},()=>{ const o={}; ROLE_KEYS.forEach(k=>o[k] = "empty"); return o; });
 
   // メモ（セッション内保持）
   let memoVisible = false; let memoText = "";
   notepadArea && notepadArea.addEventListener('input', ()=>{ memoText = notepadArea.value; });
 
+  // Tips 固定文（あなたがソース編集で増減可能）
+  let tipsVisible = false;
+  const tipsItems = [
+    { title: 'メロ逮捕', text: 'メロは誰で逮捕しても拳銃を落とすので、確定メロを逮捕する時は確白を使わなくてもよい。確白が見えてない時は適当にAに逮捕させよう' },
+    { title: '逮捕者の白確', text: '逮捕された人が身分証を落とした場合、拘束した人は確定でL側陣営。あえてグレーの人物を逮捕者に選び、身分証が出てきたら捜査員で確定と判断する戦法もある。' },
+    { title: 'Xキラ逮捕時の注意点', text: '初日でデスノートを見られた等でキラが確定した場合、ワタリかLで逮捕すること。局長や白確捜査員はXキラで信者になる可能性がある。逮捕者がその日に信者になった場合、デスノートを落とさない。' },
+    { title: '捜査員の証明', text: '捜査員の証明はLなら出現場所を確認可能。事前にワタリを遠くに退避させておこう。逆に怪しい人物が出現場所の近くを通った時に発動し、その人物が捜査員に触れるかで役持ちか否かを確かめる戦法がある。' },
+    { title: 'NPC死亡時の優先行動', text: '建物内でNPCが死ぬ素振りを見せたら,死体を回収するのではなく真っ先に外に出て周囲に人がいないか確認。周囲に人がいればその人物にノートを書く暇はないのでキラではない。また、ノートに書いてNPCが死ぬまでは若干のタイムラグがある。初動で確認しなければすぐそこでノートを書いていたキラに白を出す可能性がある。' },
+    { title: 'メロ殺害の判別法', text: 'ダイイングメッセージにメモがない、拳銃自殺ポイントでもないのに死体の隣に銃弾が転がっている場合、かなりの高確率でメロによる殺害。' },
+    { title: '遺体回収', text: '遺体が回収されずに翌日になった場合、遺体は消えずにそこに残っている' },
+    { title: '局長の緊急会議', text: '局長の緊急会議はデスノートを書ききるより早い。これは常識だが実は銃を抜くよりも早い。撃たれる瞬間に押せる反射神経があれば回避可能。' },
+    { title: '2人同時聞き込みタスク', text: '聞き込みタスクは反対側から聞くことで身分証盗難エリアに入らずに1NPCに2人同時聞き込み可能。合同捜査のタスクも同じ。' },
+    { title: '監視カメラの安置', text: '全ての監視カメラには安置がある。特に初期配置のラジコン・トイレの安置は有用。' },
+    { title: 'NPCの証言', text: 'ダウンタウンにおいてNPCからノートを使っていた証言が落ちないのは全て建物内。しかし、トイタウンの一部では路上なのに証言が落ちない地帯が存在する。' },
+    { title: 'ミサハウスの証言', text: 'ミサハウスは最強のノート書きポイントに思えるが、NPCからノートを使っていた証言が落ちる。ご利用は計画的に。' },
+    { title: 'タスク発生時に不可能な行動', text: '局長の緊急会議はキラタスク発生中は使用不可。局長に邪魔されずに局長やＬを殺す最大のチャンス。また、ドル札ばら撒きも使用不可。' },
+    { title: 'キーコンフィグ', text: 'チャットのボタンはなぜかキーコンで変更できない。マウスのサイドボタンにTキーを仕込んでおくと円滑なチャットが可能。' },
+    { title: '定型チャットの小テク', text: '止まって！、監視します、アイテムを渡しますのチャットは発言者を指定せずに打つことができる。' },
+    { title: 'キラ・Lの判定法', text: 'キラ/Xキラ、L/Nを判断する方法は2つ。　1.固有イベント…ビデオメッセージ/偽監視タスクが発生したら（捜査会議で取得したら）確定でキラ/X。捜査員の証明・Lを騙る者/SPKの備考・ドル札ばらまきが出たら確定でL/N　2.アイコン…そもそもイベント発生時のアイコンでわかる。' }
+  ];
+
   // 描画順＆モード
   let order = Array.from({length: MAX_PLAYERS}, (_,i)=>i);
   let viewMode = 'a';
 
+  // === b´（プルダウン制）用状態 ===
+  const namePool   = Array(16).fill('');
+  const namesBprime= Array(10).fill('NONE');
+  function getDisplayName(i){
+    return (viewMode==='bPrime')
+      ? ((namesBprime[i] && namesBprime[i]!=='NONE') ? namesBprime[i] : '')
+      : (names[i]||'');
+  }
+
   const letterOf = i => String.fromCharCode(65 + i);
-  const shortName = i => { const t=(names[i]||"").trim(); return t?Array.from(t).slice(0,3).join(''):letterOf(i); };
+  const shortName = i => {
+    const t=(getDisplayName(i)||"").trim();
+    return t?Array.from(t).slice(0,3).join(''):letterOf(i);
+  };
 
   // 現在のラベル（UI切替で更新）
-  let LABEL_KIRA_MAIN = '月'; // K or X の表示ラベル
-  let LABEL_L_MAIN    = 'L';  // L or N の表示ラベル
+  let LABEL_KIRA_MAIN = '月'; // 表示ラベル（不明時も月）
+  let LABEL_L_MAIN    = 'L';  // 表示ラベル（不明時もL）
 
   function rolesNow(){
-    // UIに出す順序・色
     return [
-      { label: LABEL_KIRA_MAIN, key: (LABEL_KIRA_MAIN==='X'?'X':'K'), color:'red' },
+      { label: LABEL_KIRA_MAIN, key: 'K_MAIN', color:'red' },
       { label: '信', key:'SHIN', color:'red' },
-      { label: LABEL_L_MAIN, key:(LABEL_L_MAIN==='N'?'N':'L'), color:'blue' },
+      { label: LABEL_L_MAIN, key:'L_MAIN', color:'blue' },
       { label: 'ワ', key:'WA', color:'blue' },
       { label: '局', key:'KYOKU', color:'blue' },
       { label: '捜', key:'SOU', color:'blue' },
       { label: 'メ', key:'M', color:'purple' }
     ];
   }
-  const nextState = s => s==="empty" ? "check" : s==="check" ? "x" : "empty";
-  const icon      = s => s==="empty" ? "□"     : s==="check" ? "☑"  : "×";
+
+  const nextStateTri = s => s==="empty" ? "check" : s==="check" ? "x" : "empty";
+  const iconTri      = s => s==="empty" ? "□"     : s==="check" ? "☑"  : "×";
+
+  // 追加：ノートテスト用遷移（□→処→見→□）
+  const nextStateNote = s => s==="empty" ? "proc" : s==="proc" ? "watch" : "empty";
+  const iconNote      = s => s==="empty" ? "□" : s==="proc" ? "処" : "見";
+
+  // 追加：キラビデオ用遷移（□→←→→見→□）
+  const nextStateVideo = s => s==="empty" ? "left" : s==="left" ? "right" : s==="right" ? "watch" : "empty";
+  const iconVideo      = s => s==="empty" ? "□" : s==="left" ? "←" : s==="right" ? "→" : "見";
+
+  function badgeText(i, state, mode){
+    if(mode==='note-test') return shortName(i) + iconNote(state);
+    if(mode==='video-msg') return shortName(i) + iconVideo(state);
+    return shortName(i) + iconTri(state);
+  }
 
   /*================ プレイヤーカード配色（左1/3・右2/3） ================*/
   function updatePlayerCardColor(card){
     const idx = Number(card.dataset.index ?? -1); if(idx < 0) return;
     const COLORS = { red:'#ffecec', blue:'#edf4ff', purple:'#f3eaff', gray:'#e0e0e0', none:'#ffffff' };
 
-    // 右側（b優先）
     let right='none';
     const p = roleStates[idx]||{};
     const hasPurple = p['M']==='check';
-    const hasRed    = p['K']==='check' || p['X']==='check' || p['SHIN']==='check';
-    const hasBlue   = p['L']==='check' || p['N']==='check' || p['WA']==='check' || p['KYOKU']==='check' || p['SOU']==='check';
+    const hasRed    = p['K_MAIN']==='check' || p['SHIN']==='check';
+    const hasBlue   = p['L_MAIN']==='check' || p['WA']==='check' || p['KYOKU']==='check' || p['SOU']==='check';
     if(hasPurple) right='purple';
     else if(hasRed) right='red';
     else if(hasBlue) right='blue';
@@ -273,7 +340,6 @@
       else{ right = (r>=b)? 'red' : 'blue'; }
     }
 
-    // 左側（a優先）
     let left='none';
     const stolen = (idCards[idx]===0);
     if(stolen) left='gray'; else if(['purple','red','blue'].includes(right)) left=right; else left='none';
@@ -287,13 +353,20 @@
   function renderCount(index){ document.querySelectorAll(`.count-red[data-index="${index}"]`).forEach(e=>e.textContent=redCounts[index]); document.querySelectorAll(`.count-blue[data-index="${index}"]`).forEach(e=>e.textContent=blueCounts[index]); }
   function renderAllCounts(){ for(let i=0;i<10;i++) renderCount(i); }
 
-  function isEmptyPlayer(i){ if((names[i]||'').trim()!=='') return false; if(redCounts[i]!==0 || blueCounts[i]!==0) return false; const st = roleStates[i]; return ['K','X','SHIN','L','N','WA','KYOKU','SOU','M'].every(k=>st[k]==='empty'); }
+  function isEmptyPlayer(i){
+    const nameStr = (viewMode==='bPrime')
+      ? ((namesBprime[i] && namesBprime[i]!=='NONE') ? namesBprime[i] : '')
+      : (names[i]||'');
+    if(nameStr.trim()!=='') return false;
+    if(redCounts[i]!==0 || blueCounts[i]!==0) return false;
+    const st = roleStates[i];
+    return ['K_MAIN','SHIN','L_MAIN','WA','KYOKU','SOU','M'].every(k=>st[k]==='empty');
+  }
   function pushBlanksToEnd(){ const nonEmpty = order.filter(i=> !isEmptyPlayer(i)); const empty = order.filter(i=>  isEmptyPlayer(i)); order = nonEmpty.concat(empty); }
 
-  function setMode(m){ if(viewMode!==m){ viewMode=m; pushBlanksToEnd(); renderPlayers(); wireExistingTheftSpeakers(); refreshAllNameSelects(); } }
+  function setMode(m){ if(viewMode!==m){ viewMode=m; pushBlanksToEnd(); renderPlayers(); wireExistingTheftSpeakers(); refreshAllNameSelects();  renderBprimeSettingsVisibility(); } }
 
   function renderPlayers(){
-    // メモの可視状態・内容を保持
     if(notepadWrap){ notepadWrap.style.display = memoVisible ? '' : 'none'; if(memoVisible) notepadArea.value = memoText; }
 
     playersGrid.innerHTML='';
@@ -316,8 +389,27 @@
     const head=document.createElement('div'); head.className='player-header'; head.title='最新イベントに紐づけ'; head.textContent=letterOf(index);
     head.addEventListener('click', ()=> linkPlayerToLatestEvent(index));
 
-    const name=document.createElement('input'); name.className='name-input'; name.type='text'; name.placeholder='名前'; name.value=names[index]||'';
-    name.addEventListener('input',()=>{ names[index]=name.value; updateAllParticipantLabels(index); refreshAllNameSelects(); });
+    let name;
+    if(viewMode==='bPrime'){
+      name=document.createElement('select'); name.className='name-input';
+      function refill(){
+        const keep = namesBprime[index] || 'NONE';
+        name.innerHTML='';
+        name.append(new Option('NONE','NONE'));
+        namePool.filter(v=>v.trim()).forEach(v=> name.append(new Option(v,v)));
+        name.value = keep;
+      }
+      refill();
+      name.addEventListener('change',()=>{
+        namesBprime[index]=name.value;
+        updateAllParticipantLabels(index);
+        refreshAllNameSelects();
+      });
+    } else {
+      const _name=document.createElement('input'); _name.className='name-input'; _name.type='text'; _name.placeholder='名前'; _name.value=names[index]||'';
+      _name.addEventListener('input',()=>{ names[index]=_name.value; updateAllParticipantLabels(index); refreshAllNameSelects(); });
+      name=_name;
+    }
 
     // 身分証アイコン
     const idIcon=document.createElement('span'); idIcon.className='idcard'; idIcon.title='身分証'; function paintId(){ idIcon.textContent='📒'; idIcon.classList.toggle('off', idCards[index]===0); } paintId();
@@ -331,7 +423,7 @@
     top.append(head,name,idIcon,cntWrap); card.appendChild(top);
 
     const rolesDiv=document.createElement('div'); rolesDiv.className='roles';
-    rolesNow().forEach(ro=>{ const sp=document.createElement('span'); sp.className=`role-badge ${ro.color}`; const st=roleStates[index][ro.key]||'empty'; sp.dataset.state=st; sp.textContent=ro.label+icon(st); sp.onclick=()=>{ const ns = nextState(sp.dataset.state); sp.dataset.state=ns; sp.textContent=ro.label+icon(ns); roleStates[index][ro.key]=ns; updatePlayerCardColor(card); }; rolesDiv.appendChild(sp); });
+    rolesNow().forEach(ro=>{ const sp=document.createElement('span'); sp.className=`role-badge ${ro.color}`; const st=roleStates[index][ro.key]||'empty'; sp.dataset.state=st; sp.textContent=ro.label+iconTri(st); sp.onclick=()=>{ const ns = nextStateTri(sp.dataset.state); sp.dataset.state=ns; sp.textContent=ro.label+iconTri(ns); roleStates[index][ro.key]=ns; updatePlayerCardColor(card); }; rolesDiv.appendChild(sp); });
     card.appendChild(rolesDiv);
 
     updatePlayerCardColor(card);
@@ -359,36 +451,157 @@
 
   function addPlayer(name,preset,linkOn){
     const idx=firstEmptyIndex(); if(idx<0) return; names[idx]=name;
-    const actK = (LABEL_KIRA_MAIN==='X')?'X':'K';
-    const actL = (LABEL_L_MAIN==='N')?'N':'L';
-    const presetMap={ suspect:[actK,'SHIN'], investigator:[actL,'WA','KYOKU','SOU'] };
+    const presetMap={ suspect:['K_MAIN','SHIN'], investigator:['L_MAIN','WA','KYOKU','SOU'] };
     if(preset && presetMap[preset]) presetMap[preset].forEach(key=> roleStates[idx][key]='check');
     renderPlayers(); updateAllParticipantLabels(idx); refreshAllNameSelects(); if(linkOn) linkPlayerToLatestEvent(idx); renderCount(idx);
   }
 
-  function linkPlayerToLatestEvent(playerIndex){ const last=[...eventList.querySelectorAll('.event-card')].pop(); if(!last) return; let group=last.querySelector('.participants.suspects'); if(!group) group=last.querySelector('.participants'); if(!group) return; const badge=group.querySelector(`.p-badge[data-index="${playerIndex}"]`); if(badge){ const prev = badge.dataset.state || 'empty'; if(prev!=='check'){ badge.dataset.state='check'; badge.textContent=shortName(playerIndex)+icon('check'); const t=group.dataset.countType||'none'; if(t!=='none') applyDelta(playerIndex,t,1); } } }
+  function linkPlayerToLatestEvent(playerIndex){ const last=[...eventList.querySelectorAll('.event-card')].pop(); if(!last) return; let group=last.querySelector('.participants.suspects'); if(!group) group=last.querySelector('.participants'); if(!group) return; const badge=group.querySelector(`.p-badge[data-index="${playerIndex}"]`); if(badge){ const prev = badge.dataset.state || 'empty'; if(prev!=='check'){ badge.dataset.state='check'; const mode = group.dataset.mode || 'tri'; badge.textContent=badgeText(playerIndex,'check',mode); const t=group.dataset.countType||'none'; if(t!=='none' && mode==='tri') applyDelta(playerIndex,t,1); } } }
 
   function paintIdIcon(index){ const el = document.querySelector(`.player-card[data-index="${index}"] .idcard`); if(el){ el.textContent='📒'; el.classList.toggle('off', idCards[index]===0); } const card = document.querySelector(`.player-card[data-index="${index}"]`); if(card) updatePlayerCardColor(card); }
 
   function addDay(){ dayCounter++; const dh=document.createElement('div'); dh.className='day-header'; dh.textContent=`${dayCounter}日目`; eventList.appendChild(dh); }
 
-  function buildParticipants(countType,labelText='関与:'){ const wrap=document.createElement('div'); wrap.className='participants'; wrap.dataset.countType=countType; const lbl=document.createElement('span'); lbl.textContent=labelText; wrap.appendChild(lbl); for(let i=0;i<10;i++){ const p=document.createElement('span'); p.className='p-badge'; p.dataset.state='empty'; p.dataset.index=i; p.textContent=shortName(i)+icon('empty'); p.onclick=()=>{ const prev=p.dataset.state; const next=nextState(prev); p.dataset.state=next; p.textContent=shortName(i)+icon(next); const type=wrap.dataset.countType||'none'; if(type!=='none'){ const prevC=(prev==='check')?1:0, nextC=(next==='check')?1:0; const delta=nextC-prevC; if(delta) applyDelta(i,type,delta); } }; wrap.appendChild(p); } return wrap; }
+  //=== 参加者UI（拡張） ===
+  function buildParticipantsAdvanced({countType='none', labelText='関与:', mode='tri'}){
+    const wrap=document.createElement('div');
+    wrap.className='participants';
+    wrap.dataset.countType=countType; // tri のみ利用
+    wrap.dataset.mode=mode;
+    const lbl=document.createElement('span'); lbl.textContent=labelText; wrap.appendChild(lbl);
+
+    for(let i=0;i<10;i++){
+      const p=document.createElement('span');
+      p.className='p-badge'; p.dataset.index=i; p.dataset.state='empty';
+      p.textContent=badgeText(i,'empty',mode);
+      p.title = mode==='note-test' ? 'クリックで：□→処→見→□' : (mode==='video-msg' ? 'クリックで：□→←→→見→□' : 'クリックで：□→☑→×→□');
+      p.onclick=()=>{
+        const prev=p.dataset.state;
+        let next;
+        if(mode==='note-test') next = nextStateNote(prev);
+        else if(mode==='video-msg') next = nextStateVideo(prev);
+        else next = nextStateTri(prev);
+
+        if(mode==='tri'){
+          const type=wrap.dataset.countType||'none';
+          if(type!=='none'){
+            const prevC=(prev==='check')?1:0, nextC=(next==='check')?1:0;
+            const delta=nextC-prevC; if(delta) applyDelta(i,type,delta);
+          }
+        }
+        p.dataset.state=next;
+        p.textContent=badgeText(i,next,mode);
+      };
+      wrap.appendChild(p);
+    }
+    return wrap;
+  }
+  function buildParticipants(countType,labelText='関与:'){ return buildParticipantsAdvanced({countType,labelText,mode:'tri'}); }
   function buildSuspects(countType){ const wrap=buildParticipants(countType,'容疑者:'); wrap.classList.add('suspects'); return wrap; }
 
-  function nonEmptyPlayerIndices(){ return order.filter(i=> (names[i]||"").trim()); }
-  function populateNameSelect(sel, keepValue){ const current = (keepValue!==undefined? keepValue: sel.value); sel.innerHTML=''; sel.append(new Option('（選択）','')); nonEmptyPlayerIndices().forEach(i=> sel.append(new Option(names[i].trim(), String(i))) ); if(current && sel.querySelector(`option[value="${current}"]`)) sel.value=current; else sel.value=''; }
+  function nonEmptyPlayerIndices(){
+    if(viewMode==='bPrime'){
+      return order.filter(i => (namesBprime[i] && namesBprime[i]!=='NONE'));
+    }
+    return order.filter(i => (names[i]||"").trim());
+  }
+  function populateNameSelect(sel, keepValue){
+    const current = (keepValue!==undefined? keepValue: sel.value);
+    sel.innerHTML='';
+    sel.append(new Option('（選択）',''));
+    nonEmptyPlayerIndices().forEach(i=>{
+      const label = getDisplayName(i).trim();
+      sel.append(new Option(label, String(i)));
+    });
+    if(current && sel.querySelector(`option[value="${current}"]`)) sel.value=current; else sel.value='';
+  }
   function buildNameSelect(initialValue){ const sel=document.createElement('select'); sel.className='name-select'; populateNameSelect(sel, initialValue!==undefined? String(initialValue): undefined); return sel; }
   function refreshAllNameSelects(){ document.querySelectorAll('select.name-select').forEach(sel=> populateNameSelect(sel)); }
 
-  // ブルーイベントはラベル切替に追従
-  function blueEventNames(){ const p1 = (LABEL_L_MAIN==='N')?'SPS尾行':'捜査員の証明'; const p2 = (LABEL_L_MAIN==='N')?'札束撒き':'Lを騙るもの'; return new Set([p1,p2,'プレイヤー死亡','NPC死亡']); }
+  function blueEventNames(){
+    // Lモードのときのみ青カウント対象（Nモード用のSPK尾行/札束撒きは含めない）
+    return new Set(['捜査員証明','L騙る者','プレイヤー死亡','NPC死亡']);
+  }
 
-  function addEvent(name){ if(dayCounter===0) addDay(); const card=document.createElement('div'); card.className='event-card'; const header=document.createElement('div'); header.className='event-header'; const title=document.createElement('div'); title.className='event-title'; title.textContent=`${eventCounter}. ${name}`; const del=document.createElement('button'); del.type='button'; del.className='delete-btn'; del.textContent='削除ォ！'; del.onclick=()=>confirmDeleteEvent(card); header.append(title,del); card.appendChild(header); const loc=document.createElement('input'); loc.className='loc-input'; loc.placeholder='場所（自由記述）'; card.appendChild(loc); if(name==='プレイヤー死亡'){ const row=document.createElement('div'); row.className='field-row'; const label=document.createElement('span'); label.textContent='死亡者:'; const victimSel = buildNameSelect(); row.append(label,victimSel); card.appendChild(row); } const countType = blueEventNames().has(name) ? 'blue' : 'none'; card.appendChild(buildParticipants(countType,'関与:')); const note=document.createElement('textarea'); note.className='note-area'; note.placeholder='備考'; card.appendChild(note); eventList.appendChild(card); eventCounter++; return card; }
+  function addEvent(name){
+    if(dayCounter===0) addDay();
+    const card=document.createElement('div'); card.className='event-card';
+    const header=document.createElement('div'); header.className='event-header';
+    const title=document.createElement('div'); title.className='event-title'; title.textContent=`${eventCounter}. ${name}`;
+    const del=document.createElement('button'); del.type='button'; del.className='delete-btn'; del.textContent='削除ォ！'; del.onclick=()=>confirmDeleteEvent(card);
+    header.append(title,del); card.appendChild(header);
+
+    const loc=document.createElement('input'); loc.className='loc-input'; loc.placeholder='場所（自由記述）'; card.appendChild(loc);
+
+    if(name==='プレイヤー死亡'){
+      const row=document.createElement('div'); row.className='field-row'; const label=document.createElement('span'); label.textContent='死亡者:'; const victimSel = buildNameSelect(); row.append(label,victimSel); card.appendChild(row);
+    }
+
+    if(name==='デスノートのテスト'){
+      card.appendChild(buildParticipantsAdvanced({countType:'none', labelText:'関与:', mode:'note-test'}));
+    } else if(name==='キラビデオ'){
+      card.appendChild(buildParticipantsAdvanced({countType:'none', labelText:'関与:', mode:'video-msg'}));
+    } else if(name==='合同捜査'){
+      const row=document.createElement('div'); row.className='field-row';
+      const aLbl=document.createElement('span'); aLbl.textContent='参加者A:'; const aSel=buildNameSelect();
+      const bLbl=document.createElement('span'); bLbl.textContent='参加者B:'; const bSel=buildNameSelect();
+      row.append(aLbl,aSel,bLbl,bSel); card.appendChild(row);
+    } else if(name==='逮捕'){
+      const row=document.createElement('div'); row.className='field-row';
+      const sLbl=document.createElement('span'); sLbl.textContent='容疑者:'; const suspectSel=buildNameSelect();
+      const cLbl=document.createElement('span'); cLbl.textContent='確保者:'; const captorSel=buildNameSelect();
+      const rLbl=document.createElement('span'); rLbl.textContent='結果:'; const resultSel=document.createElement('select');
+      ['','拘束','身分証逮捕','カード逮捕','メロ逮捕'].forEach(v=> resultSel.append(new Option(v||'（選択）', v)) );
+      row.append(sLbl,suspectSel,cLbl,captorSel,rLbl,resultSel); card.appendChild(row);
+
+      card.dataset.arrestBlueIndex = '';
+      function updateArrestDelta(){
+        const prev = card.dataset.arrestBlueIndex;
+        if(prev !== ''){ applyDelta(Number(prev),'blue',-1); card.dataset.arrestBlueIndex=''; }
+        if(resultSel.value==='身分証逮捕' && captorSel.value!==''){
+          const idx = Number(captorSel.value); if(!Number.isNaN(idx)){ applyDelta(idx,'blue',+1); card.dataset.arrestBlueIndex= String(idx); }
+        }
+      }
+      resultSel.addEventListener('change', updateArrestDelta);
+      captorSel.addEventListener('change', updateArrestDelta);
+    } else {
+      const countType = blueEventNames().has(name) ? 'blue' : 'none';
+      card.appendChild(buildParticipants(countType,'関与:'));
+    }
+
+    const note=document.createElement('textarea'); note.className='note-area'; note.placeholder='備考'; card.appendChild(note);
+    eventList.appendChild(card); eventCounter++; return card;
+  }
 
   function addCustomEvent(){ const v=customEventInput.value.trim(); if(v){ addEvent(v); customEventInput.value=''; } }
 
-  function addMeetingEvent(type){ if(dayCounter===0) addDay(); const card=document.createElement('div'); card.className='event-card'; const header=document.createElement('div'); header.className='event-header'; const title=document.createElement('div'); title.className='event-title'; const del=document.createElement('button'); del.type='button'; del.className='delete-btn'; del.textContent='削除'; del.onclick=()=>confirmDeleteEvent(card); header.append(title,del); card.appendChild(header); if(type==='id_theft'){ title.textContent=`${eventCounter}. 身分証を盗られた`; const row1=document.createElement('div'); row1.className='field-row'; const spLabel=document.createElement('span'); spLabel.textContent='発言者:'; const speakerSel=buildNameSelect(); speakerSel.dataset.kind='speaker-theft'; const place=document.createElement('input'); place.type='text'; place.placeholder='場所（自由記述）'; row1.append(spLabel,speakerSel,place); card.appendChild(row1); speakerSel.addEventListener('change',()=>{ const v=speakerSel.value; if(v==='') return; const idx=Number(v); if(!Number.isNaN(idx)){ idCards[idx]=0; paintIdIcon(idx); } }); speakerSel.dataset.wired='1'; card.appendChild(buildSuspects('red')); } else if(type==='accuse'){ title.textContent=`${eventCounter}. 告発・白出し`; const row1=document.createElement('div'); row1.className='field-row'; const spLabel=document.createElement('span'); spLabel.textContent='発言者:'; const speakerSel=buildNameSelect(); const contentSel=document.createElement('select'); contentSel.append(new Option('内容を選択',''), new Option('キラ','キラ'), new Option('捜査員','捜査員'), new Option('メロ','メロ')); row1.append(spLabel,speakerSel,contentSel); card.appendChild(row1); const suspects = buildSuspects('none'); card.appendChild(suspects); contentSel.addEventListener('change',()=>{ const from=suspects.dataset.countType||'none'; const to = contentSel.value==='キラ' ? 'red' : contentSel.value==='捜査員' ? 'blue' : 'none'; if(from===to) return; updateCountsForGroup(suspects, from, to); suspects.dataset.countType=to; }); }
-    eventList.appendChild(card); eventCounter++; return card; }
+  function addMeetingEvent(type){
+    if(dayCounter===0) addDay();
+    const card=document.createElement('div'); card.className='event-card';
+    const header=document.createElement('div'); header.className='event-header';
+    const title=document.createElement('div'); title.className='event-title';
+    const del=document.createElement('button'); del.type='button'; del.className='delete-btn'; del.textContent='削除'; del.onclick=()=>confirmDeleteEvent(card);
+    header.append(title,del); card.appendChild(header);
+
+    if(type==='id_theft'){
+      title.textContent=`${eventCounter}. 身分証を盗られた`;
+      const row1=document.createElement('div'); row1.className='field-row';
+      const spLabel=document.createElement('span'); spLabel.textContent='発言者:'; const speakerSel=buildNameSelect(); speakerSel.dataset.kind='speaker-theft';
+      const place=document.createElement('input'); place.type='text'; place.placeholder='場所（自由記述）';
+      row1.append(spLabel,speakerSel,place); card.appendChild(row1);
+      speakerSel.addEventListener('change',()=>{ const v=speakerSel.value; if(v==='') return; const idx=Number(v); if(!Number.isNaN(idx)){ idCards[idx]=0; paintIdIcon(idx); } }); speakerSel.dataset.wired='1';
+      card.appendChild(buildSuspects('red'));
+    } else if(type==='accuse'){
+      title.textContent=`${eventCounter}. 告発・白出し`;
+      const row1=document.createElement('div'); row1.className='field-row';
+      const spLabel=document.createElement('span'); spLabel.textContent='発言者:'; const speakerSel=buildNameSelect();
+      const contentSel=document.createElement('select'); contentSel.append(new Option('内容を選択',''), new Option('キラ','キラ'), new Option('捜査員','捜査員'), new Option('メロ','メロ'));
+      row1.append(spLabel,speakerSel,contentSel); card.appendChild(row1);
+      const suspects = buildSuspects('none'); card.appendChild(suspects);
+      contentSel.addEventListener('change',()=>{ const from=suspects.dataset.countType||'none'; const to = contentSel.value==='キラ' ? 'red' : contentSel.value==='捜査員' ? 'blue' : 'none'; if(from===to) return; updateCountsForGroup(suspects, from, to); suspects.dataset.countType=to; });
+    }
+    eventList.appendChild(card); eventCounter++; return card;
+  }
 
   function wireExistingTheftSpeakers(){ document.querySelectorAll('select.name-select[data-kind="speaker-theft"]').forEach(sel=>{ if(sel.dataset.wired==='1') return; sel.addEventListener('change',()=>{ const v=sel.value; if(v==='') return; const idx=Number(v); if(!Number.isNaN(idx)){ idCards[idx]=0; paintIdIcon(idx); } }); sel.dataset.wired='1'; }); }
 
@@ -397,23 +610,82 @@
   function openModal(){ modal.style.display='flex'; }
   function closeModal(){ modal.style.display='none'; }
   function confirmWithModal(onYes, message){ confirmTitle.textContent = message || 'よろしいですか？'; btnYes.onclick = null; btnNo.onclick  = null; btnYes.onclick = ()=>{ closeModal(); try{ onYes && onYes(); }catch(e){} }; btnNo.onclick  = closeModal; openModal(); }
-  function confirmDeleteEvent(card){ confirmWithModal(()=>{ card.querySelectorAll('.participants').forEach(group=>{ const type=group.dataset.countType||'none'; if(type==='none') return; group.querySelectorAll('.p-badge').forEach(b=>{ if(b.dataset.state==='check') applyDelta(Number(b.dataset.index), type, -1); }); }); card.remove(); }, 'このイベントを削除してよろしいですか？'); }
+  function confirmDeleteEvent(card){ confirmWithModal(()=>{ 
+    // tri のカウントを戻す
+    card.querySelectorAll('.participants').forEach(group=>{ const mode=group.dataset.mode||'tri'; const type=group.dataset.countType||'none'; if(mode==='tri' && type!=='none'){ group.querySelectorAll('.p-badge').forEach(b=>{ if(b.dataset.state==='check') applyDelta(Number(b.dataset.index), type, -1); }); } });
+    // 逮捕の青加算を戻す
+    if(card.dataset && card.dataset.arrestBlueIndex && card.dataset.arrestBlueIndex !== ''){ applyDelta(Number(card.dataset.arrestBlueIndex), 'blue', -1); card.dataset.arrestBlueIndex=''; }
+    card.remove(); 
+  }, 'このイベントを削除してよろしいですか？'); }
 
-  function updateAllParticipantLabels(changedIndex){ document.querySelectorAll(`.p-badge[data-index="${changedIndex}"]`).forEach(b=>{ const st=b.dataset.state||'empty'; b.textContent=shortName(Number(changedIndex))+icon(st); }); }
+  function updateAllParticipantLabels(changedIndex){
+    document.querySelectorAll(`.participants .p-badge[data-index="${changedIndex}"]`).forEach(b=>{
+      const mode = b.parentElement?.dataset?.mode || 'tri';
+      const st=b.dataset.state||'empty';
+      b.textContent=badgeText(Number(changedIndex), st, mode);
+    });
+  }
 
   //=== 機能：イベント欄のみリセット（名前欄などは保持） ===
-  function clearEventsOnly(){ eventList.innerHTML=''; dayCounter = 0; eventCounter = 1; }
+  function clearEventsOnly(){
+    // イベントDOMとカウンタを初期化
+    eventList.innerHTML='';
+    dayCounter = 0; eventCounter = 1;
+
+    // 赤青数値リセット
+    redCounts.fill(0); blueCounts.fill(0); renderAllCounts();
+
+    // 役職リセット（共通キー）
+    roleStates = Array.from({length:10},()=>{ const o={}; ROLE_KEYS.forEach(k=>o[k] = 'empty'); return o; });
+
+    // 身分証は全員「所持」に戻す
+    idCards.fill(1);
+
+    // 陣営トグルは「不明」に戻す
+    const kUnknown = document.querySelector('input[name="kiraType"][value="unknown"]');
+    const lUnknown = document.querySelector('input[name="lType"][value="unknown"]');
+    if(kUnknown) kUnknown.checked = true;
+    if(lUnknown) lUnknown.checked = true;
+
+    // 再描画
+    applyFactionLabels();
+    renderPlayers();
+    refreshAllNameSelects();
+  }
 
   //=== 機能：全削除（従来） ===
-  function clearAll(){ names.fill(''); redCounts.fill(0); blueCounts.fill(0); roleStates = Array.from({length:10},()=>{ const o={}; ROLE_KEYS.forEach(k=>o[k] = 'empty'); return o; }); idCards.fill(1); clearEventsOnly(); order = Array.from({length: MAX_PLAYERS}, (_,i)=>i); memoVisible = false; memoText = ""; if(notepadWrap){ notepadWrap.style.display='none'; notepadArea.value=''; } renderPlayers(); refreshAllNameSelects(); }
+  function clearAll(){ names.fill(''); redCounts.fill(0); blueCounts.fill(0); roleStates = Array.from({length:10},()=>{ const o={}; ROLE_KEYS.forEach(k=>o[k] = 'empty'); return o; }); idCards.fill(1); 
+    // b´の候補と割当も初期化
+    for(let i=0;i<10;i++) namesBprime[i]='NONE';
+    for(let i=0;i<16;i++) namePool[i]=''; clearEventsOnly(); order = Array.from({length: MAX_PLAYERS}, (_,i)=>i); memoVisible = false; memoText = ""; if(notepadWrap){ notepadWrap.style.display='none'; notepadArea.value=''; } renderPlayers(); refreshAllNameSelects(); }
 
   // メモボタン：表示/非表示トグル
   memoBtn.onclick = ()=>{ memoVisible = !memoVisible; if(notepadWrap){ notepadWrap.style.display = memoVisible ? '' : 'none'; if(memoVisible){ notepadArea.value = memoText; notepadArea.focus(); } } };
 
+  // Tips：ビュー切替＆描画（固定文のみ）
+  tipsBtn.onclick = ()=>{ tipsVisible = !tipsVisible; renderTips(); };
+  function renderTips(){
+    if(tipsVisible){
+      eventList.style.display='none';
+      tipsPane.style.display='block';
+      tipsPane.innerHTML='';
+      tipsItems.forEach((it,idx)=>{
+        const card=document.createElement('div'); card.className='tip-card';
+        const ttl=document.createElement('div'); ttl.className='tip-title'; ttl.textContent=`${idx+1}. ${it.title}`;
+        const txt=document.createElement('div'); txt.textContent=it.text;
+        card.append(ttl,txt);
+        tipsPane.appendChild(card);
+      });
+    }else{
+      tipsPane.style.display='none';
+      eventList.style.display='block';
+    }
+  }
+
   // 設定ボタン：players セクションと settings セクションを入れ替え
   let settingsOpen = false;
-  settingsBtn.onclick = ()=>{ settingsOpen = !settingsOpen; settingsSec.style.display = settingsOpen ? 'block' : 'none'; playersSec.style.display  = settingsOpen ? 'none'  : 'block'; settingsSec.style.width   = '100%'; document.querySelectorAll('input[name="mode"]').forEach(r=>{ r.checked = (r.value===viewMode); }); };
-
+  settingsBtn.onclick = ()=>{ settingsOpen = !settingsOpen; settingsSec.style.display = settingsOpen ? 'block' : 'none'; playersSec.style.display  = settingsOpen ? 'none'  : 'block'; settingsSec.style.width   = '100%'; document.querySelectorAll('input[name="mode"]').forEach(r=>{ r.checked = (r.value===viewMode); });  renderBprimeSettingsVisibility(); };
+ 
   // 設定欄内の操作
   document.addEventListener('change', (e)=>{ if(e.target && e.target.name === 'mode'){ setMode(e.target.value); } });
   eventsResetBtn && (eventsResetBtn.onclick = ()=> confirmWithModal(clearEventsOnly, 'イベント欄をすべて削除して 1日目 に戻します。よろしいですか？'));
@@ -425,14 +697,16 @@
 
   // === イベントボタンのラベル・挙動を現在設定に合わせて更新 ===
   function updateControlButtons(){
-    // L/N 側
-    const proof = (LABEL_L_MAIN==='N') ? 'SPS尾行' : '捜査員の証明';
-    const ltrick= (LABEL_L_MAIN==='N') ? '札束撒き' : 'Lを騙るもの';
+    // L/N 側（不明時はLの表示・挙動）
+    const lSel = Array.from(lRadios).find(r=>r.checked)?.value || 'unknown';
+    const proof = (lSel==='N') ? 'SPK尾行' : '捜査員証明';
+    const ltrick= (lSel==='N') ? '札束撒き' : 'L騙る者';
     btnProof.textContent = proof; btnProof.onclick = ()=>addEvent(proof);
     btnLDress.textContent= ltrick; btnLDress.onclick= ()=>addEvent(ltrick);
 
-    // キラ/Xキラ 側
-    const kvideo = (LABEL_KIRA_MAIN==='X') ? '偽監視タスク' : 'キラビデオ';
+    // キラ/Xキラ 側（不明時はキラ表示）
+    const kSel = Array.from(kiraRadios).find(r=>r.checked)?.value || 'unknown';
+    const kvideo = (kSel==='X') ? '偽監視' : 'キラビデオ';
     btnKiraV.textContent = kvideo; btnKiraV.onclick = ()=>addEvent(kvideo);
 
     // 他は固定
@@ -442,21 +716,61 @@
     btnNpcDie.textContent='NPC死亡'; btnNpcDie.onclick=()=>addEvent('NPC死亡');
     btnIdTheft.textContent='身分証盗難'; btnIdTheft.onclick=()=>addMeetingEvent('id_theft');
     btnAccuse.textContent='告発/白出し'; btnAccuse.onclick=()=>addMeetingEvent('accuse');
+
+    // 新規
+    btnJoint.textContent='合同捜査'; btnJoint.onclick=()=>addEvent('合同捜査');
+    btnArrest.textContent='逮捕'; btnArrest.onclick=()=>addEvent('逮捕');
   }
 
-  function updateFooterSymbolLabels(){ const kIsX = (LABEL_KIRA_MAIN==='X'); const lIsN = (LABEL_L_MAIN==='N'); lblKira.textContent = (kIsX? 'キラ':'キラ'); lblXKira.textContent = (kIsX? 'Xキラ':'Xキラ'); lblL.textContent=(lIsN?'L':'L'); lblN.textContent=(lIsN?'N':'N'); }
-
-  function applyFactionLabels(){ LABEL_KIRA_MAIN = Array.from(kiraRadios).find(r=>r.checked)?.value==='X' ? 'X' : '月'; LABEL_L_MAIN = Array.from(lRadios).find(r=>r.checked)?.value==='N' ? 'N' : 'L'; updateFooterSymbolLabels(); updateControlButtons(); renderPlayers(); }
-
+  function applyFactionLabels(){
+    const kSel = Array.from(kiraRadios).find(r=>r.checked)?.value || 'unknown';
+    const lSel = Array.from(lRadios).find(r=>r.checked)?.value || 'unknown';
+    LABEL_KIRA_MAIN = (kSel==='X') ? 'X' : '月';
+    LABEL_L_MAIN    = (lSel==='N') ? 'N' : 'L';
+    updateControlButtons(); renderPlayers();
+  }
   kiraRadios.forEach(r=> r.addEventListener('change', applyFactionLabels));
   lRadios.forEach(r=> r.addEventListener('change', applyFactionLabels));
 
   function wireInitialButtons(){ updateControlButtons(); }
 
   // 初期描画
-  wireInitialButtons(); updateFooterSymbolLabels(); renderPlayers(); wireExistingTheftSpeakers();
+  wireInitialButtons(); renderPlayers(); wireExistingTheftSpeakers(); renderTips(); renderBprimeSettingsVisibility();
 
-  (function setupSplitters(){ const docStyle=document.documentElement.style; function bindSplitter(id, cssVar, minPx, maxPx){ const sp=document.getElementById(id); let dragging=false,startY=0,startH=0; const move=(e)=>{ if(!dragging) return; const dy=e.clientY-startY; let nh=Math.min(maxPx, Math.max(minPx, startH+dy)); docStyle.setProperty(cssVar, nh+'px'); }; const up=()=>{ dragging=false; window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); }; sp.addEventListener('mousedown',(e)=>{ dragging=true; startY=e.clientY; const cur=parseInt(getComputedStyle(document.documentElement).getPropertyValue(cssVar)||'0',10); startH=isNaN(cur)?0:cur; window.addEventListener('mousemove', move); window.addEventListener('mouseup', up); }); } bindSplitter('splitter1','--players-h',140,700); bindSplitter('splitter2','--controls-h',56,240); })();
+  function renderBprimeSettingsVisibility(){
+    if(!bprimePoolCard) return;
+    const show = settingsOpen && (viewMode==='bPrime');
+    bprimePoolCard.style.display = show ? 'block' : 'none';
+    if(show) renderBprimePool();
+  }
+  function renderBprimePool(){
+    if(!bprimePoolWrap) return;
+    bprimePoolWrap.innerHTML='';
+    for(let i=0;i<16;i++){
+      const row = document.createElement('div');
+      const inp = document.createElement('input');
+      inp.type='text'; inp.placeholder=`名前${i+1}`; inp.value = namePool[i]||'';
+      inp.addEventListener('input', ()=>{
+        namePool[i]=inp.value;
+        if(viewMode==='bPrime'){
+          document.querySelectorAll('.player-card .name-input').forEach(sel=>{
+            if(sel.tagName==='SELECT'){
+              const cardIdx = Number(sel.closest('.player-card')?.dataset.index ?? -1);
+              const keep = (cardIdx>=0) ? (namesBprime[cardIdx]||'NONE') : 'NONE';
+              sel.innerHTML=''; sel.append(new Option('NONE','NONE'));
+              namePool.filter(v=>v.trim()).forEach(v=> sel.append(new Option(v,v)));
+              sel.value = keep;
+            }
+          });
+          refreshAllNameSelects();
+        }
+      });
+      row.appendChild(inp);
+      bprimePoolWrap.appendChild(row);
+    }
+  }
+
+  (function setupSplitters(){ const docStyle=document.documentElement.style; function bindSplitter(id, cssVar, minPx, maxPx){ const sp=document.getElementById(id); let dragging=false,startY=0,startH=0; const move=(e)=>{ if(!dragging) return; const dy=e.clientY-startY; let nh=Math.min(maxPx, Math.max(minPx, startH+dy)); docStyle.setProperty(cssVar, nh+'px'); }; const up=()=>{ dragging=false; window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); }; sp.addEventListener('mousedown',(e)=>{ dragging=true; startY=e.clientY; const cur=parseInt(getComputedStyle(document.documentElement).getPropertyValue(cssVar)||'0',10); startH=isNaN(cur)?0:cur; window.addEventListener('mousemove', move); window.addEventListener('mouseup', up); }); } bindSplitter('splitter1','--players-h',140,700); bindSplitter('splitter2','--controls-h',56,260); })();
 </script>
 </body>
 </html>
