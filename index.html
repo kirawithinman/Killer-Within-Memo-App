@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
-<title>局長メモ V1.3（ブラウザ版）</title>
+<title>局長メモ V1.31（ブラウザ版）</title>
 <style>
   :root{ --font: 12px; --gap: 4px; --pad: 4px; --name-w: 66px; --players-h: 380px; --controls-h: 110px; }
   *{box-sizing:border-box}
@@ -149,6 +149,7 @@
       <button type="button" id="btnIdTheft">身分証盗難</button>
       <button type="button" id="btnAccuse">告発/白出し</button>
       <button type="button" id="btnArrest">逮捕</button>
+      <button type="button" id="btnPlace">場所</button>
     </div>
   </section>
 
@@ -230,9 +231,17 @@
   const btnAccuse= document.getElementById('btnAccuse');
   const btnJoint = document.getElementById('btnJoint');
   const btnArrest= document.getElementById('btnArrest');
+  const btnPlace = document.getElementById('btnPlace');
 
   let eventCounter = 1, dayCounter = 0;
   const MAX_PLAYERS = 10;
+  const PLACE_EVENT_LOCATIONS = [
+    '交番/北駅右',
+    'バックヤード/コート上',
+    '倉庫/中央広場',
+    'エントランス/サイコロ右',
+    '駐車場/南駅上'
+  ];
 
   // 共通記憶領域
   const names = Array(10).fill("");
@@ -266,7 +275,7 @@
     { title: 'タスク発生時に不可能な行動', text: '局長の緊急会議はキラタスク発生中は使用不可。局長に邪魔されずに局長やＬを殺す最大のチャンス。また、ドル札ばら撒きも使用不可。' },
     { title: 'キーコンフィグ', text: 'チャットのボタンはなぜかキーコンで変更できない。マウスのサイドボタンにTキーを仕込んでおくと円滑なチャットが可能。' },
     { title: '定型チャットの小テク', text: '止まって！、監視します、アイテムを渡しますのチャットは発言者を指定せずに打つことができる。' },
-    { title: 'キラ・Lの判定法', text: 'キラ/Xキラ、L/Nを判断する方法は2つ。　1.固有イベント…ビデオメッセージ/偽監視タスクが発生したら（捜査会議で取得したら）確定でキラ/X。捜査員の証明・Lを騙る者/SPKの備考・ドル札ばらまきが出たら確定でL/N　2.アイコン…そもそもイベント発生時のアイコンでわかる。' }
+    { title: 'キラ・Lの判定法', text: 'キラ/Xキラ、L/Nを判断する方法は2つ。　1.固有イベント…ビデオメッセージ/偽監視タスクが発生したら（捜査会議で取得したら）確定でキラ/X。捜査員の証明・Lを騙る者/SPKの尾行・ドル札ばらまきが出たら確定でL/N　2.アイコン…L側はそもそもイベント発生時のアイコンでわかる。' }
   ];
 
   // 描画順＆モード
@@ -531,42 +540,60 @@
     const del=document.createElement('button'); del.type='button'; del.className='delete-btn'; del.textContent='削除ォ！'; del.onclick=()=>confirmDeleteEvent(card);
     header.append(title,del); card.appendChild(header);
 
-    const loc=document.createElement('input'); loc.className='loc-input'; loc.placeholder='場所（自由記述）'; card.appendChild(loc);
+    const isPlaceEvent = (name==='場所');
 
-    if(name==='プレイヤー死亡'){
+    if(!isPlaceEvent){
+      const loc=document.createElement('input'); loc.className='loc-input'; loc.placeholder='場所（自由記述）'; card.appendChild(loc);
+    }
+
+    if(isPlaceEvent){
+      const row=document.createElement('div'); row.className='field-row';
+      const placeLbl=document.createElement('span'); placeLbl.textContent='場所:';
+      const placeSel=document.createElement('select');
+      placeSel.className='place-select';
+      placeSel.append(new Option('（選択）',''));
+      PLACE_EVENT_LOCATIONS.forEach(loc=> placeSel.append(new Option(loc, loc)));
+      row.append(placeLbl,placeSel);
+      card.appendChild(row);
+
+      const participants = buildParticipants('none','関与:');
+      card.appendChild(participants);
+    } else if(name==='プレイヤー死亡'){
       const row=document.createElement('div'); row.className='field-row'; const label=document.createElement('span'); label.textContent='死亡者:'; const victimSel = buildNameSelect(); row.append(label,victimSel); card.appendChild(row);
     }
 
-    if(name==='デスノートのテスト'){
-      card.appendChild(buildParticipantsAdvanced({countType:'none', labelText:'関与:', mode:'note-test'}));
-    } else if(name==='キラビデオ'){
-      card.appendChild(buildParticipantsAdvanced({countType:'none', labelText:'関与:', mode:'video-msg'}));
-    } else if(name==='合同捜査'){
-      const row=document.createElement('div'); row.className='field-row';
-      const aLbl=document.createElement('span'); aLbl.textContent='参加者A:'; const aSel=buildNameSelect();
-      const bLbl=document.createElement('span'); bLbl.textContent='参加者B:'; const bSel=buildNameSelect();
-      row.append(aLbl,aSel,bLbl,bSel); card.appendChild(row);
-    } else if(name==='逮捕'){
-      const row=document.createElement('div'); row.className='field-row';
-      const sLbl=document.createElement('span'); sLbl.textContent='容疑者:'; const suspectSel=buildNameSelect();
-      const cLbl=document.createElement('span'); cLbl.textContent='確保者:'; const captorSel=buildNameSelect();
-      const rLbl=document.createElement('span'); rLbl.textContent='結果:'; const resultSel=document.createElement('select');
-      ['','拘束','身分証逮捕','カード逮捕','メロ逮捕'].forEach(v=> resultSel.append(new Option(v||'（選択）', v)) );
-      row.append(sLbl,suspectSel,cLbl,captorSel,rLbl,resultSel); card.appendChild(row);
+    if(!isPlaceEvent){
+      if(name==='デスノートのテスト'){
+        card.appendChild(buildParticipantsAdvanced({countType:'none', labelText:'関与:', mode:'note-test'}));
+      } else if(name==='キラビデオ'){
+        card.appendChild(buildParticipantsAdvanced({countType:'none', labelText:'関与:', mode:'video-msg'}));
+      } else if(name==='合同捜査'){
+        const row=document.createElement('div'); row.className='field-row';
+        const aLbl=document.createElement('span'); aLbl.textContent='参加者A:'; const aSel=buildNameSelect();
+        const bLbl=document.createElement('span'); bLbl.textContent='参加者B:'; const bSel=buildNameSelect();
+        row.append(aLbl,aSel,bLbl,bSel); card.appendChild(row);
+      } else if(name==='逮捕'){
+        const row=document.createElement('div'); row.className='field-row';
+        const sLbl=document.createElement('span'); sLbl.textContent='容疑者:'; const suspectSel=buildNameSelect();
+        const cLbl=document.createElement('span'); cLbl.textContent='確保者:'; const captorSel=buildNameSelect();
+        const rLbl=document.createElement('span'); rLbl.textContent='結果:'; const resultSel=document.createElement('select');
+        ['','拘束','身分証逮捕','カード逮捕','メロ逮捕'].forEach(v=> resultSel.append(new Option(v||'（選択）', v)) );
+        row.append(sLbl,suspectSel,cLbl,captorSel,rLbl,resultSel); card.appendChild(row);
 
-      card.dataset.arrestBlueIndex = '';
-      function updateArrestDelta(){
-        const prev = card.dataset.arrestBlueIndex;
-        if(prev !== ''){ applyDelta(Number(prev),'blue',-1); card.dataset.arrestBlueIndex=''; }
-        if(resultSel.value==='身分証逮捕' && captorSel.value!==''){
-          const idx = Number(captorSel.value); if(!Number.isNaN(idx)){ applyDelta(idx,'blue',+1); card.dataset.arrestBlueIndex= String(idx); }
+        card.dataset.arrestBlueIndex = '';
+        function updateArrestDelta(){
+          const prev = card.dataset.arrestBlueIndex;
+          if(prev !== ''){ applyDelta(Number(prev),'blue',-1); card.dataset.arrestBlueIndex=''; }
+          if(resultSel.value==='身分証逮捕' && captorSel.value!==''){
+            const idx = Number(captorSel.value); if(!Number.isNaN(idx)){ applyDelta(idx,'blue',+1); card.dataset.arrestBlueIndex=String(idx); }
+          }
         }
+        resultSel.addEventListener('change', updateArrestDelta);
+        captorSel.addEventListener('change', updateArrestDelta);
+      } else {
+        const countType = blueEventNames().has(name) ? 'blue' : 'none';
+        card.appendChild(buildParticipants(countType,'関与:'));
       }
-      resultSel.addEventListener('change', updateArrestDelta);
-      captorSel.addEventListener('change', updateArrestDelta);
-    } else {
-      const countType = blueEventNames().has(name) ? 'blue' : 'none';
-      card.appendChild(buildParticipants(countType,'関与:'));
     }
 
     const note=document.createElement('textarea'); note.className='note-area'; note.placeholder='備考'; card.appendChild(note);
@@ -574,6 +601,10 @@
   }
 
   function addCustomEvent(){ const v=customEventInput.value.trim(); if(v){ addEvent(v); customEventInput.value=''; } }
+
+  function addInitialEvents(){
+    addEvent('場所');
+  }
 
   function addMeetingEvent(type){
     if(dayCounter===0) addDay();
@@ -650,6 +681,7 @@
     // 再描画
     applyFactionLabels();
     renderPlayers();
+    addInitialEvents();
     refreshAllNameSelects();
   }
 
@@ -699,27 +731,28 @@
   function updateControlButtons(){
     // L/N 側（不明時はLの表示・挙動）
     const lSel = Array.from(lRadios).find(r=>r.checked)?.value || 'unknown';
-    const proof = (lSel==='N') ? 'SPK尾行' : '捜査員証明';
-    const ltrick= (lSel==='N') ? '札束撒き' : 'L騙る者';
+    const proof = (lSel==='N') ? 'SPK' : '証明';
+    const ltrick= (lSel==='N') ? 'ドル札' : 'L騙';
     btnProof.textContent = proof; btnProof.onclick = ()=>addEvent(proof);
     btnLDress.textContent= ltrick; btnLDress.onclick= ()=>addEvent(ltrick);
 
     // キラ/Xキラ 側（不明時はキラ表示）
     const kSel = Array.from(kiraRadios).find(r=>r.checked)?.value || 'unknown';
-    const kvideo = (kSel==='X') ? '偽監視' : 'キラビデオ';
+    const kvideo = (kSel==='X') ? '偽監視' : 'ビデオメ';
     btnKiraV.textContent = kvideo; btnKiraV.onclick = ()=>addEvent(kvideo);
 
     // 他は固定
-    btnCamera.textContent='監視カメラ'; btnCamera.onclick=()=>addEvent('監視カメラ設置');
+    btnCamera.textContent='カメラ'; btnCamera.onclick=()=>addEvent('監視カメラ設置');
     btnNote.textContent='ノートテスト'; btnNote.onclick=()=>addEvent('デスノートのテスト');
-    btnPcDie.textContent='PC死亡'; btnPcDie.onclick=()=>addEvent('プレイヤー死亡');
-    btnNpcDie.textContent='NPC死亡'; btnNpcDie.onclick=()=>addEvent('NPC死亡');
+    btnPcDie.textContent='PC死'; btnPcDie.onclick=()=>addEvent('プレイヤー死亡');
+    btnNpcDie.textContent='NPC死'; btnNpcDie.onclick=()=>addEvent('NPC死亡');
     btnIdTheft.textContent='身分証盗難'; btnIdTheft.onclick=()=>addMeetingEvent('id_theft');
     btnAccuse.textContent='告発/白出し'; btnAccuse.onclick=()=>addMeetingEvent('accuse');
 
     // 新規
     btnJoint.textContent='合同捜査'; btnJoint.onclick=()=>addEvent('合同捜査');
     btnArrest.textContent='逮捕'; btnArrest.onclick=()=>addEvent('逮捕');
+    btnPlace.textContent='場所'; btnPlace.onclick=()=>addEvent('場所');
   }
 
   function applyFactionLabels(){
@@ -735,7 +768,7 @@
   function wireInitialButtons(){ updateControlButtons(); }
 
   // 初期描画
-  wireInitialButtons(); renderPlayers(); wireExistingTheftSpeakers(); renderTips(); renderBprimeSettingsVisibility();
+  wireInitialButtons(); renderPlayers(); addInitialEvents(); refreshAllNameSelects(); wireExistingTheftSpeakers(); renderTips(); renderBprimeSettingsVisibility();
 
   function renderBprimeSettingsVisibility(){
     if(!bprimePoolCard) return;
